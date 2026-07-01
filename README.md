@@ -13,6 +13,13 @@ npx playwright install chromium
 ## Usage
 
 ```bash
+# Utilisable directement (exécutable), ou via `node bin/cli.js`
+./bin/cli.js --url https://example.com --threshold 50 --max-weight-kb 1500
+
+# Installation globale optionnelle : expose la commande `rgesn-audit` partout
+npm link
+rgesn-audit --url https://example.com --threshold 50
+
 # Auditer une URL distante
 node bin/cli.js --url https://example.com --threshold 50 --max-weight-kb 1500
 
@@ -109,5 +116,5 @@ test-pages/               → pages V1 (Grenelle) et V2 (Sobre) pour le crash-te
 
 ## Sprint 2 (à venir)
 
-- Packaging GitHub Action réutilisable.
 - Renforcement de la robustesse (retries réseau, timeouts, gestion des pages asynchrones complexes).
+- Intégration dans un pipeline CI/CD (ex: étape shell `rgesn-audit --url ... --threshold 50` avec vérification du code de sortie) — sans dépendance à un système CI spécifique.
