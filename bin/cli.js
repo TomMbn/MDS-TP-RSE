@@ -34,6 +34,7 @@ program
   .option('--max-weight-kb <kb>', 'Poids maximal de page en Ko avant blocage', '1536')
   .option('--timeout <ms>', 'Timeout de chargement de page en ms', '30000')
   .option('--retries <n>', "Nombre de nouvelles tentatives en cas d'échec réseau/timeout", '1')
+  .option('--runs <n>', 'Nombre de passes de mesure ; la passe médiane (par poids total) est retenue pour lisser la variance réseau', '1')
   .option('--config <path>', 'Fichier JSON listant plusieurs cibles à auditer en parallèle (mode batch)')
   .option('--concurrency <n>', 'Nombre d\'audits exécutés en parallèle en mode batch', '3')
   .parse(process.argv);
@@ -66,6 +67,35 @@ function slugify(label) {
 }
 
 /**
+ * Effectue `runs` passes de mesure successives et retient la passe dont le poids total
+ * est le plus proche de la médiane, plutôt que la première venue. Le chargement d'une page
+ * varie d'une requête à l'autre (cache CDN, latence réseau) : une seule mesure peut être un
+ * outlier ; la médiane sur plusieurs passes donne un score nettement plus reproductible.
+ */
+async function collectRepresentativeMetrics(targetUrl, { timeout, retries, browser, runs }) {
+  const allRuns = [];
+  for (let i = 0; i < runs; i++) {
+    allRuns.push(await collectPageMetrics(targetUrl, { timeout, retries, browser }));
+  }
+
+  if (allRuns.length === 1) {
+    return { metrics: allRuns[0], variance: null };
+  }
+
+  const weighted = allRuns
+    .map((metrics) => ({ metrics, weightBytes: metrics.requests.reduce((sum, r) => sum + r.sizeBytes, 0) }))
+    .sort((a, b) => a.weightBytes - b.weightBytes);
+
+  const median = weighted[Math.floor(weighted.length / 2)];
+  const minKB = Math.round(weighted[0].weightBytes / 1024);
+  const maxKB = Math.round(weighted[weighted.length - 1].weightBytes / 1024);
+  const medianKB = Math.round(median.weightBytes / 1024);
+  const variancePct = medianKB > 0 ? Math.round(((maxKB - minKB) / medianKB) * 100) : 0;
+
+  return { metrics: median.metrics, variance: { runs: allRuns.length, minKB, maxKB, medianKB, variancePct } };
+}
+
+/**
  * Audite une cible unique (URL distante ou dossier local servi temporairement).
  * `browser` est partagé entre audits concurrents : chaque audit ouvre son propre
  * contexte isolé (cookies, cache, réseau indépendants), ce qui permet la concurrence
@@ -88,19 +118,28 @@ async function runSingleAudit(target, browser) {
     targetUrl = started.url;
   }
 
-  console.log(`[${label}] Analyse de ${targetUrl} ...`);
+  const runs = Number(target.runs ?? opts.runs);
+  console.log(`[${label}] Analyse de ${targetUrl}${runs > 1 ? ` (${runs} passes)` : ''} ...`);
 
   let metrics;
+  let variance;
   try {
-    metrics = await collectPageMetrics(targetUrl, {
+    ({ metrics, variance } = await collectRepresentativeMetrics(targetUrl, {
       timeout: Number(target.timeout ?? opts.timeout),
       retries: Number(target.retries ?? opts.retries),
       browser,
-    });
+      runs,
+    }));
   } catch (err) {
     server?.close();
     console.error(`[${label}] Erreur lors du chargement de la page : ${err.message}`);
     return { label, failed: true, breaches: [`Échec du chargement : ${err.message}`] };
+  }
+
+  if (variance) {
+    console.log(
+      `[${label}] Poids mesuré sur ${variance.runs} passes : ${variance.minKB}-${variance.maxKB} Ko (médiane retenue : ${variance.medianKB} Ko, variance ±${variance.variancePct}%)`
+    );
   }
 
   const outJson = target.out ?? (opts.config ? `reports/${slugify(label)}.json` : opts.out);
@@ -122,6 +161,7 @@ async function runSingleAudit(target, browser) {
     date: new Date().toISOString(),
     thresholdEcoIndex,
     thresholdWeightKB,
+    variance,
   };
 
   const breaches = printConsoleReport(audit, { label, thresholdEcoIndex, thresholdWeightKB });

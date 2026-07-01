@@ -229,10 +229,19 @@ export const CRITERIA = [
     weight: 2,
     ref: rgesn('6.2', "Le service numérique s'astreint-il à une limite de requêtes par écran ?", 65),
     evaluate(m) {
-      const errors = m.requests.filter((r) => r.status >= 400);
+      // 429 (Too Many Requests) reflète le plus souvent une protection anti-bot du serveur
+      // réagissant au navigateur headless, pas un défaut de la page elle-même : on l'exclut
+      // du verdict mais on le garde visible dans le détail pour ne pas masquer l'information.
+      const allErrors = m.requests.filter((r) => r.status >= 400);
+      const rateLimited = allErrors.filter((r) => r.status === 429);
+      const errors = allErrors.filter((r) => r.status !== 429);
+      const rateLimitNote =
+        rateLimited.length > 0
+          ? ` (+ ${rateLimited.length} requête(s) 429 exclues du verdict, probable rate-limiting anti-bot du serveur audité)`
+          : '';
       return {
         pass: errors.length === 0,
-        value: `${errors.length} erreur(s)`,
+        value: `${errors.length} erreur(s)${rateLimitNote}`,
         threshold: '0 erreur',
         detail:
           (errors.length > 0 ? errors.map((e) => `${e.status} ${e.url}`).join('; ') : 'Toutes les requêtes ont abouti.') +

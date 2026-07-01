@@ -42,6 +42,7 @@ Options principales :
 | `--out-md` | Chemin du rapport Markdown | — |
 | `--out-html` | Chemin du rapport HTML | `reports/report.html` |
 | `--no-html` | Désactive la génération du rapport HTML | — |
+| `--runs` | Nombre de passes de mesure ; la passe médiane (poids total) est retenue | 1 |
 | `--open` | Ouvre automatiquement le rapport HTML dans le navigateur par défaut à la fin de l'audit | — |
 
 Code de sortie : `0` si le budget est respecté, `1` si un seuil est dépassé (pour bloquer une pipeline CI/CD).
@@ -160,6 +161,19 @@ test-pages/               → pages V1 (Grenelle) et V2 (Sobre) pour le crash-te
   sans qu'ils ne se polluent mutuellement.
 - **Aucun plantage sur erreur JS** : les crashs de page et exceptions JS non interceptées de la page
   auditée sont capturés comme avertissements (affichés en console) et n'interrompent jamais l'audit.
+
+### Fiabilité de la mesure
+
+- **Mesure médiane multi-passes** (`--runs <n>`) : le poids et les métriques d'une page varient d'un
+  chargement à l'autre (cache CDN, latence réseau). Avec `--runs 3` (ou plus), l'outil effectue
+  plusieurs passes et retient celle dont le poids total est le plus proche de la médiane plutôt que la
+  première mesure venue, ce qui réduit l'effet d'un chargement atypique sur le score final. La variance
+  observée (min/max/médiane) est affichée en console et tracée dans le rapport JSON (`meta.variance`).
+- **Filtrage des faux positifs 429** : une requête en `429 Too Many Requests` reflète le plus souvent une
+  protection anti-bot du serveur audité réagissant au navigateur headless, pas un défaut de la page. Le
+  critère "absence d'erreurs réseau" l'exclut désormais du verdict tout en la gardant visible dans le
+  détail, pour ne pas casser le build sur un faux positif (constaté en conditions réelles sur des sites
+  protégés par LiteSpeed/WAF).
 
 ### Mode batch (concurrence)
 
