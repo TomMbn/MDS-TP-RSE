@@ -73,8 +73,9 @@ Deux pages de démonstration sont fournies dans `test-pages/` :
 - **`v2-sobre/`** : page optimisée (images WebP, DOM minimal, CSS/JS minifiés, lazy-loading, compression Gzip/Brotli et Cache-Control activés).
 
 ```bash
-npm run audit:v2   # ~18/18 critères, EcoIndex ~96, exit 0
-npm run audit:v1   # ~8/18 critères, EcoIndex ~34, exit 1 (build cassé)
+npm run audit:v2      # ~18/18 critères, EcoIndex ~96, exit 0 — ouvre le rapport HTML
+npm run audit:v1      # ~8/18 critères, EcoIndex ~34, exit 1 (build cassé) — ouvre le rapport HTML
+npm run audit:batch   # les deux en parallèle (Sprint 2) — ouvre reports/index.html
 ```
 
 ## Les 18 critères automatisés

@@ -9,6 +9,7 @@
   "scripts": {
     "audit:v1": "node bin/cli.js --dir test-pages/v1-grenelle --no-compress --no-cache-headers --out reports/v1-grenelle.json --out-md reports/v1-grenelle.md --out-html reports/v1-grenelle.html --label \"V1 Grenelle\" --open",
     "audit:v2": "node bin/cli.js --dir test-pages/v2-sobre --out reports/v2-sobre.json --out-md reports/v2-sobre.md --out-html reports/v2-sobre.html --label \"V2 Sobre\" --open",
+    "audit:batch": "node bin/cli.js --config audit.config.example.json --concurrency 2 --open",
     "test": "npm run audit:v2 && (npm run audit:v1 || true)"
   },
   "dependencies": {
