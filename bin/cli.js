@@ -8,6 +8,7 @@ import { evaluateCriteria } from '../src/criteria/index.js';
 import { printConsoleReport, writeJsonReport, writeMarkdownReport } from '../src/report/index.js';
 import { writeHtmlReport, writeHtmlIndex } from '../src/report/html.js';
 import { startStaticServer } from '../src/server.js';
+import { openInBrowser } from '../src/open.js';
 
 process.on('unhandledRejection', (err) => {
   console.error(`Erreur inattendue non gérée : ${err?.message ?? err}`);
@@ -28,6 +29,7 @@ program
   .option('--out-md <path>', 'Chemin du rapport Markdown (optionnel)')
   .option('--out-html <path>', 'Chemin du rapport HTML', 'reports/report.html')
   .option('--no-html', 'Désactive la génération du rapport HTML')
+  .option('--open', "Ouvre automatiquement le rapport HTML dans le navigateur par défaut à la fin de l'audit")
   .option('--threshold <score>', "Seuil minimal d'EcoIndex approximé (0-100)", '50')
   .option('--max-weight-kb <kb>', 'Poids maximal de page en Ko avant blocage', '1536')
   .option('--timeout <ms>', 'Timeout de chargement de page en ms', '30000')
@@ -173,6 +175,7 @@ async function main() {
       const indexPath = 'reports/index.html';
       writeHtmlIndex(outcomes, indexPath);
       console.log(`\nRésumé HTML écrit : ${path.resolve(indexPath)}`);
+      if (opts.open) openInBrowser(path.resolve(indexPath));
     }
 
     process.exit(anyBreach ? 1 : 0);
@@ -188,6 +191,8 @@ async function main() {
   } finally {
     await browser.close();
   }
+
+  if (opts.open && outcome.htmlPath) openInBrowser(path.resolve(outcome.htmlPath));
   process.exit(outcome.breaches.length > 0 ? 1 : 0);
 }
 

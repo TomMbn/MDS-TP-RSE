@@ -42,6 +42,7 @@ Options principales :
 | `--out-md` | Chemin du rapport Markdown | — |
 | `--out-html` | Chemin du rapport HTML | `reports/report.html` |
 | `--no-html` | Désactive la génération du rapport HTML | — |
+| `--open` | Ouvre automatiquement le rapport HTML dans le navigateur par défaut à la fin de l'audit | — |
 
 Code de sortie : `0` si le budget est respecté, `1` si un seuil est dépassé (pour bloquer une pipeline CI/CD).
 
@@ -57,12 +58,11 @@ externe, ouvrable hors-ligne) avec :
   (statut, EcoIndex, score, poids, requêtes) avec un lien vers le rapport détaillé de chacune.
 
 ```bash
-node bin/cli.js --dir test-pages/v2-sobre --out-html reports/v2-sobre.html
-open reports/v2-sobre.html   # macOS — ou double-clic dans le Finder
+# Génère le rapport et l'ouvre directement dans le navigateur par défaut
+node bin/cli.js --dir test-pages/v2-sobre --out-html reports/v2-sobre.html --open
 
-# Mode batch : génère un rapport par cible + reports/index.html
-node bin/cli.js --config audit.config.example.json
-open reports/index.html
+# Mode batch : génère un rapport par cible + reports/index.html, puis l'ouvre
+node bin/cli.js --config audit.config.example.json --open
 ```
 
 ## Crash-test de validation (Sprint 1)
