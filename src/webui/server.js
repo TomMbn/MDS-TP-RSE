@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { openInBrowser } from '../open.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const REPORTS_DIR = path.join(ROOT, 'reports');
@@ -83,33 +84,40 @@ function renderForm() {
       <div>
         <label for="url">URL à auditer</label>
         <input id="url" name="url" type="url" placeholder="https://example.com" required>
+        <small>L'adresse complète (avec https://) de la page qui sera chargée dans un navigateur headless.</small>
       </div>
       <div>
         <label for="label">Label</label>
         <input id="label" name="label" type="text" placeholder="Mon site" value="Audit">
+        <small>Nom affiché dans le rapport et utilisé pour nommer les fichiers générés (ex. "Mon site" → reports/mon-site.html).</small>
       </div>
       <div class="row3">
         <div>
           <label for="threshold">Seuil EcoIndex</label>
           <input id="threshold" name="threshold" type="number" value="50" min="0" max="100">
+          <small>Score minimal (0-100) attendu. En dessous, l'audit est considéré en échec ("build cassé").</small>
         </div>
         <div>
           <label for="maxWeightKb">Poids max (Ko)</label>
           <input id="maxWeightKb" name="maxWeightKb" type="number" value="1536" min="1">
+          <small>Poids total maximum de la page (toutes ressources incluses) avant d'être considéré excessif.</small>
         </div>
         <div>
           <label for="runs">Passes (--runs)</label>
           <input id="runs" name="runs" type="number" value="1" min="1" max="10">
+          <small>Nombre de chargements successifs ; la mesure médiane est retenue pour lisser la variance réseau.</small>
         </div>
       </div>
       <div class="row">
         <div>
           <label for="timeout">Timeout (ms)</label>
           <input id="timeout" name="timeout" type="number" value="30000" min="1000">
+          <small>Délai maximal accordé au chargement de la page avant d'abandonner (en millisecondes).</small>
         </div>
         <div>
           <label for="retries">Retries</label>
           <input id="retries" name="retries" type="number" value="1" min="0" max="5">
+          <small>Nombre de nouvelles tentatives en cas d'échec réseau ou de timeout transitoire.</small>
         </div>
       </div>
       <button id="btn" type="submit">Lancer l'audit</button>
@@ -240,5 +248,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Interface d'audit disponible sur http://localhost:${PORT}`);
+  const url = `http://localhost:${PORT}`;
+  console.log(`Interface d'audit disponible sur ${url}`);
+  openInBrowser(url);
 });
