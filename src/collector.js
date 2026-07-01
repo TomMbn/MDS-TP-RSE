@@ -106,19 +106,28 @@ async function runAudit(browser, url, timeout) {
         return 1 + Math.max(...Array.from(node.children).map(maxDepth));
       }
 
-      const images = Array.from(document.images).map((img) => ({
-        src: img.currentSrc || img.src,
-        loading: img.getAttribute('loading'),
-        width: img.naturalWidth,
-        height: img.naturalHeight,
-        inViewport: img.getBoundingClientRect().top < window.innerHeight,
-      }));
+      const images = Array.from(document.images).map((img) => {
+        const rect = img.getBoundingClientRect();
+        return {
+          src: img.currentSrc || img.src,
+          loading: img.getAttribute('loading'),
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+          displayWidth: rect.width,
+          displayHeight: rect.height,
+          inViewport: rect.top < window.innerHeight,
+        };
+      });
 
       const videos = Array.from(document.querySelectorAll('video')).map((v) => ({
         autoplay: v.autoplay,
         hasControls: v.controls,
         muted: v.muted,
       }));
+
+      const usesClientStorage =
+        (window.localStorage && window.localStorage.length > 0) ||
+        'serviceWorker' in navigator && navigator.serviceWorker.controller !== null;
 
       return {
         totalNodes: document.querySelectorAll('*').length,
@@ -127,6 +136,7 @@ async function runAudit(browser, url, timeout) {
         videos,
         hasViewportMeta: !!document.querySelector('meta[name="viewport"]'),
         htmlSizeChars: document.documentElement.outerHTML.length,
+        usesClientStorage,
       };
     });
 

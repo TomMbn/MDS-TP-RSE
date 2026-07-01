@@ -16,11 +16,6 @@ function rgesn(code, title, page) {
   return { source: 'RGESN v1.0.1', code, title, url: `${RGESN_PDF}#page=${page}` };
 }
 
-/** Critère non couvert explicitement par le RGESN : bonne pratique GreenIT / web performance classique. */
-function greenit(title, url) {
-  return { source: 'GreenIT / bonne pratique', code: null, title, url };
-}
-
 function bytesToKB(b) {
   return b / 1024;
 }
@@ -33,9 +28,8 @@ function isTextType(contentType = '') {
  * Chaque critère reçoit les métriques brutes collectées par le navigateur headless
  * et retourne un verdict normalisé. `pass` détermine si le critère est respecté ;
  * `weight` sert au calcul du score global pondéré. `ref` pointe vers le critère
- * officiel du référentiel (RGESN v1.0.1, page exacte du PDF) dont ce contrôle est
- * la traduction automatisée, ou vers une bonne pratique GreenIT quand le RGESN
- * n'a pas de critère dédié.
+ * officiel du RGESN v1.0.1 (page exacte du PDF) dont ce contrôle est la traduction
+ * automatisée.
  */
 export const CRITERIA = [
   {
@@ -233,17 +227,16 @@ export const CRITERIA = [
     label: "Absence d'erreurs réseau (4xx/5xx)",
     category: CATEGORY.NETWORK,
     weight: 2,
-    ref: greenit(
-      "Critère technique complémentaire (hors RGESN) : une requête en erreur est retéléchargée ou retentée inutilement, gaspillant de la bande passante.",
-      'https://developer.mozilla.org/fr/docs/Web/HTTP/Status'
-    ),
+    ref: rgesn('6.2', "Le service numérique s'astreint-il à une limite de requêtes par écran ?", 65),
     evaluate(m) {
       const errors = m.requests.filter((r) => r.status >= 400);
       return {
         pass: errors.length === 0,
         value: `${errors.length} erreur(s)`,
         threshold: '0 erreur',
-        detail: errors.length > 0 ? errors.map((e) => `${e.status} ${e.url}`).join('; ') : 'Toutes les requêtes ont abouti.',
+        detail:
+          (errors.length > 0 ? errors.map((e) => `${e.status} ${e.url}`).join('; ') : 'Toutes les requêtes ont abouti.') +
+          ' Une requête en erreur est comptée dans le budget de requêtes du RGESN 6.2 sans apporter aucun contenu utile.',
       };
     },
   },
@@ -264,47 +257,46 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'dom-nodes',
-    label: 'Nombre de nœuds DOM',
+    id: 'dimension-images',
+    label: "Dimensionnement des images à leur contexte d'affichage",
     category: CATEGORY.DOM,
     weight: 3,
-    ref: greenit(
-      "Critère technique complémentaire (hors RGESN, issu de la méthodologie EcoIndex/GreenIT-Analysis) : un DOM volumineux augmente le coût de rendu et de mémoire côté client.",
-      'https://www.ecoindex.fr/comment-ca-marche/'
-    ),
+    ref: rgesn('6.5', "Le service numérique affiche-t-il majoritairement des éléments graphiques et des médias dont les dimensions d'origine correspondent aux dimensions du contexte d'affichage ?", 68),
     evaluate(m) {
+      const rendered = m.dom.images.filter((img) => img.displayWidth > 0 && img.naturalWidth > 0);
+      const oversized = rendered.filter((img) => img.naturalWidth / img.displayWidth > 1.5);
+      const ratio = rendered.length === 0 ? 1 : 1 - oversized.length / rendered.length;
       return {
-        pass: m.dom.totalNodes <= 800,
-        value: `${m.dom.totalNodes} nœuds`,
-        threshold: '≤ 800 nœuds',
-        detail: `Un DOM volumineux augmente le coût de rendu et de mémoire côté client.`,
+        pass: ratio >= 0.8,
+        value: `${oversized.length}/${rendered.length} images sur-dimensionnées`,
+        threshold: '≤ 20% des images avec une taille source > 1,5x la taille affichée',
+        detail: `Une image dont la taille source dépasse largement sa taille affichée fait télécharger des octets inutiles.`,
       };
     },
   },
   {
-    id: 'dom-profondeur',
-    label: 'Profondeur maximale du DOM',
+    id: 'bundles-js',
+    label: 'Chargement de composants complets de bibliothèques (bundles JS)',
     category: CATEGORY.DOM,
     weight: 1,
-    ref: greenit(
-      'Critère technique complémentaire (hors RGESN) : une arborescence trop profonde complexifie le CSSOM et le rendu.',
-      'https://web.dev/dom-size/'
-    ),
+    ref: rgesn('6.7', 'Le service numérique se limite-t-il au chargement des composants utilisés au sein des bibliothèques lorsque cela est possible ?', 70),
     evaluate(m) {
+      const scripts = m.requests.filter((r) => r.resourceType === 'script');
+      const heavyBundles = scripts.filter((r) => r.sizeBytes > 150 * 1024);
       return {
-        pass: m.dom.maxDepth <= 15,
-        value: `${m.dom.maxDepth} niveaux`,
-        threshold: '≤ 15 niveaux',
-        detail: `Une arborescence trop profonde complexifie le CSSOM et le rendu.`,
+        pass: heavyBundles.length === 0,
+        value: `${heavyBundles.length} bundle(s) JS > 150 Ko`,
+        threshold: '0 fichier JS unique > 150 Ko',
+        detail: 'Un fichier JS volumineux et unique suggère souvent une bibliothèque chargée entièrement plutôt que ses seuls composants utilisés.',
       };
     },
   },
   {
     id: 'lazy-loading',
-    label: 'Lazy-loading des médias hors-champ',
+    label: 'Chargement progressif (lazy-loading) des médias hors-champ',
     category: CATEGORY.DOM,
     weight: 2,
-    ref: rgesn('6.8', "Le service numérique évite-t-il de déclencher le chargement de ressources et de contenus inutilisés pour chaque fonctionnalité ?", 71),
+    ref: rgesn('6.6', 'Le service numérique propose-t-il un mécanisme de chargement progressif pour les éléments graphiques et les médias le nécessitant ?', 69),
     evaluate(m) {
       const offscreen = m.dom.images.filter((img) => !img.inViewport);
       const lazy = offscreen.filter((img) => img.loading === 'lazy');
@@ -318,21 +310,17 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'verbosite-html',
-    label: 'Verbosité du HTML',
+    id: 'stockage-client',
+    label: 'Stockage côté client pour limiter les échanges réseau',
     category: CATEGORY.DOM,
     weight: 1,
-    ref: greenit(
-      'Critère technique complémentaire (hors RGESN) : un HTML verbeux (balises redondantes, structure non sémantique) alourdit le parsing et le poids transféré.',
-      'https://developer.mozilla.org/fr/docs/Glossary/Semantics'
-    ),
+    ref: rgesn('6.9', 'Le service numérique utilise-t-il un stockage côté client de certaines ressources afin d\'éviter des échanges réseaux inutiles ?', 72),
     evaluate(m) {
-      const sizeKB = m.dom.htmlSizeChars / 1024;
       return {
-        pass: sizeKB <= 100,
-        value: `${sizeKB.toFixed(0)} Ko de markup`,
-        threshold: '≤ 100 Ko',
-        detail: `Un HTML verbeux (balises redondantes, structure non sémantique) alourdit le parsing.`,
+        pass: m.dom.usesClientStorage,
+        value: m.dom.usesClientStorage ? 'utilisé' : 'non utilisé',
+        threshold: 'localStorage ou Service Worker actif',
+        detail: 'Un cache applicatif côté client (localStorage, Service Worker) évite de retélécharger des ressources déjà obtenues.',
       };
     },
   },
