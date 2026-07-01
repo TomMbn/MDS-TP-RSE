@@ -6,6 +6,7 @@ import { chromium } from 'playwright';
 import { collectPageMetrics } from '../src/collector.js';
 import { evaluateCriteria } from '../src/criteria/index.js';
 import { printConsoleReport, writeJsonReport, writeMarkdownReport } from '../src/report/index.js';
+import { writeHtmlReport, writeHtmlIndex } from '../src/report/html.js';
 import { startStaticServer } from '../src/server.js';
 
 process.on('unhandledRejection', (err) => {
@@ -25,6 +26,8 @@ program
   .option('--label <label>', 'Nom affiché pour ce rapport', 'Audit')
   .option('--out <path>', 'Chemin du rapport JSON', 'reports/report.json')
   .option('--out-md <path>', 'Chemin du rapport Markdown (optionnel)')
+  .option('--out-html <path>', 'Chemin du rapport HTML', 'reports/report.html')
+  .option('--no-html', 'Désactive la génération du rapport HTML')
   .option('--threshold <score>', "Seuil minimal d'EcoIndex approximé (0-100)", '50')
   .option('--max-weight-kb <kb>', 'Poids maximal de page en Ko avant blocage', '1536')
   .option('--timeout <ms>', 'Timeout de chargement de page en ms', '30000')
@@ -98,6 +101,11 @@ async function runSingleAudit(target, browser) {
     return { label, failed: true, breaches: [`Échec du chargement : ${err.message}`] };
   }
 
+  const outJson = target.out ?? (opts.config ? `reports/${slugify(label)}.json` : opts.out);
+  const outMd = target.outMd ?? (opts.config ? `reports/${slugify(label)}.md` : opts.outMd);
+  const htmlEnabled = target.html ?? opts.html;
+  const outHtml = htmlEnabled ? target.outHtml ?? (opts.config ? `reports/${slugify(label)}.html` : opts.outHtml) : null;
+
   server?.close();
 
   if (metrics.warnings.length > 0) {
@@ -116,9 +124,6 @@ async function runSingleAudit(target, browser) {
 
   const breaches = printConsoleReport(audit, { label, thresholdEcoIndex, thresholdWeightKB });
 
-  const outJson = target.out ?? (opts.config ? `reports/${slugify(label)}.json` : opts.out);
-  const outMd = target.outMd ?? (opts.config ? `reports/${slugify(label)}.md` : opts.outMd);
-
   writeJsonReport(audit, meta, outJson);
   console.log(`[${label}] Rapport JSON écrit : ${path.resolve(outJson)}`);
 
@@ -127,7 +132,21 @@ async function runSingleAudit(target, browser) {
     console.log(`[${label}] Rapport Markdown écrit : ${path.resolve(outMd)}`);
   }
 
-  return { label, failed: false, breaches };
+  if (outHtml) {
+    writeHtmlReport(audit, meta, outHtml);
+    console.log(`[${label}] Rapport HTML écrit : ${path.resolve(outHtml)}`);
+  }
+
+  return {
+    label,
+    failed: false,
+    breaches,
+    htmlPath: outHtml,
+    ecoIndex: audit.ecoIndex,
+    criteriaScore: audit.criteriaScore,
+    totalPageWeightKB: audit.totalPageWeightKB,
+    totalRequests: audit.totalRequests,
+  };
 }
 
 async function main() {
@@ -150,10 +169,25 @@ async function main() {
       console.log(`  ${status} ${outcome.label}${outcome.breaches.length > 0 ? ` — ${outcome.breaches.join('; ')}` : ''}`);
     }
 
+    if (opts.html) {
+      const indexPath = 'reports/index.html';
+      writeHtmlIndex(outcomes, indexPath);
+      console.log(`\nRésumé HTML écrit : ${path.resolve(indexPath)}`);
+    }
+
     process.exit(anyBreach ? 1 : 0);
   }
 
-  const outcome = await runSingleAudit({ url: opts.url, dir: opts.dir, label: opts.label, out: opts.out, outMd: opts.outMd, compress: opts.compress, cacheHeaders: opts.cacheHeaders });
+  const browser = await chromium.launch();
+  let outcome;
+  try {
+    outcome = await runSingleAudit(
+      { url: opts.url, dir: opts.dir, label: opts.label, out: opts.out, outMd: opts.outMd, outHtml: opts.outHtml, html: opts.html, compress: opts.compress, cacheHeaders: opts.cacheHeaders },
+      browser
+    );
+  } finally {
+    await browser.close();
+  }
   process.exit(outcome.breaches.length > 0 ? 1 : 0);
 }
 

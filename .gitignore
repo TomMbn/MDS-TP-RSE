@@ -1,3 +1,4 @@
 node_modules/
 reports/*.json
 reports/*.md
+reports/*.html

@@ -40,8 +40,30 @@ Options principales :
 | `--max-weight-kb` | Poids maximal de page en Ko | 1536 |
 | `--out` | Chemin du rapport JSON | `reports/report.json` |
 | `--out-md` | Chemin du rapport Markdown | — |
+| `--out-html` | Chemin du rapport HTML | `reports/report.html` |
+| `--no-html` | Désactive la génération du rapport HTML | — |
 
 Code de sortie : `0` si le budget est respecté, `1` si un seuil est dépassé (pour bloquer une pipeline CI/CD).
+
+## Rapport HTML (façon Istanbul, en mieux)
+
+Chaque audit génère par défaut un **rapport HTML autonome** (un seul fichier, aucune dépendance
+externe, ouvrable hors-ligne) avec :
+
+- des **jauges circulaires** (score critères pondéré, EcoIndex) en CSS pur,
+- une **bannière de verdict** claire (✔ respecté / ✘ build cassé) avec le détail des dépassements,
+- le détail des 18 critères par catégorie, avec **badge cliquable vers le critère RGESN officiel**,
+- en mode batch (`--config`), une **page `reports/index.html`** qui compare toutes les cibles auditées
+  (statut, EcoIndex, score, poids, requêtes) avec un lien vers le rapport détaillé de chacune.
+
+```bash
+node bin/cli.js --dir test-pages/v2-sobre --out-html reports/v2-sobre.html
+open reports/v2-sobre.html   # macOS — ou double-clic dans le Finder
+
+# Mode batch : génère un rapport par cible + reports/index.html
+node bin/cli.js --config audit.config.example.json
+open reports/index.html
+```
 
 ## Crash-test de validation (Sprint 1)
 
@@ -119,6 +141,7 @@ src/server.js             → serveur statique local (simulation compression/cac
 src/criteria/index.js    → les 18 critères et leur logique d'évaluation
 src/ecoindex.js           → calcul du score composite par quantiles
 src/report/index.js      → rapport console (stdout) + export JSON/Markdown
+src/report/html.js        → rapport HTML autonome (jauges, badges RGESN) + index comparatif batch
 test-pages/               → pages V1 (Grenelle) et V2 (Sobre) pour le crash-test
 ```
 
