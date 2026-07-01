@@ -1,0 +1,4 @@
+[
+  { "label": "V1 Grenelle", "dir": "test-pages/v1-grenelle", "compress": false, "cacheHeaders": false, "threshold": 50 },
+  { "label": "V2 Sobre", "dir": "test-pages/v2-sobre", "threshold": 50 }
+]

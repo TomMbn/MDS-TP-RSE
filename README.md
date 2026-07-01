@@ -114,7 +114,36 @@ src/report/index.js      → rapport console (stdout) + export JSON/Markdown
 test-pages/               → pages V1 (Grenelle) et V2 (Sobre) pour le crash-test
 ```
 
-## Sprint 2 (à venir)
+## Sprint 2 — Robustesse & mode batch concurrent
 
-- Renforcement de la robustesse (retries réseau, timeouts, gestion des pages asynchrones complexes).
-- Intégration dans un pipeline CI/CD (ex: étape shell `rgesn-audit --url ... --threshold 50` avec vérification du code de sortie) — sans dépendance à un système CI spécifique.
+### Robustesse face aux architectures asynchrones
+
+- **Fallback de chargement** (`src/collector.js`, `gotoRobust`) : certaines SPA ne deviennent jamais
+  `networkidle` (polling, websockets, analytics). L'outil tente d'abord `networkidle`, puis retombe
+  sur `load` + un délai de stabilisation fixe plutôt que d'échouer.
+- **Retries** (`--retries`, défaut 1) : une tentative supplémentaire est effectuée sur timeout/erreur
+  de navigation transitoire, avec un contexte de navigation neuf à chaque essai.
+- **Isolation par contexte** : chaque audit s'exécute dans un `browser.newContext()` dédié (cookies,
+  cache, réseau isolés), ce qui permet d'exécuter plusieurs audits en parallèle sur un même navigateur
+  sans qu'ils ne se polluent mutuellement.
+- **Aucun plantage sur erreur JS** : les crashs de page et exceptions JS non interceptées de la page
+  auditée sont capturés comme avertissements (affichés en console) et n'interrompent jamais l'audit.
+
+### Mode batch (concurrence)
+
+```bash
+node bin/cli.js --config audit.config.example.json --concurrency 3
+```
+
+Le fichier de config liste plusieurs cibles (`url` ou `dir`, avec seuils optionnels par cible) :
+
+```json
+[
+  { "label": "V1 Grenelle", "dir": "test-pages/v1-grenelle", "compress": false, "cacheHeaders": false },
+  { "label": "V2 Sobre", "dir": "test-pages/v2-sobre" }
+]
+```
+
+Chaque cible génère son propre rapport JSON/Markdown (`reports/<label>.json`). Un résumé consolidé
+est affiché en fin d'exécution, et l'outil sort en code `1` si **au moins une** cible dépasse son
+budget d'impact — utile pour auditer plusieurs pages critiques d'un site en une seule étape CI.

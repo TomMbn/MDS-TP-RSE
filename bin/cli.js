@@ -1,10 +1,17 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import path from 'node:path';
+import fs from 'node:fs';
+import { chromium } from 'playwright';
 import { collectPageMetrics } from '../src/collector.js';
 import { evaluateCriteria } from '../src/criteria/index.js';
 import { printConsoleReport, writeJsonReport, writeMarkdownReport } from '../src/report/index.js';
 import { startStaticServer } from '../src/server.js';
+
+process.on('unhandledRejection', (err) => {
+  console.error(`Erreur inattendue non gérée : ${err?.message ?? err}`);
+  process.exitCode = 1;
+});
 
 const program = new Command();
 
@@ -18,70 +25,136 @@ program
   .option('--label <label>', 'Nom affiché pour ce rapport', 'Audit')
   .option('--out <path>', 'Chemin du rapport JSON', 'reports/report.json')
   .option('--out-md <path>', 'Chemin du rapport Markdown (optionnel)')
-  .option('--threshold <score>', 'Seuil minimal d\'EcoIndex approximé (0-100)', '50')
+  .option('--threshold <score>', "Seuil minimal d'EcoIndex approximé (0-100)", '50')
   .option('--max-weight-kb <kb>', 'Poids maximal de page en Ko avant blocage', '1536')
   .option('--timeout <ms>', 'Timeout de chargement de page en ms', '30000')
+  .option('--retries <n>', "Nombre de nouvelles tentatives en cas d'échec réseau/timeout", '1')
+  .option('--config <path>', 'Fichier JSON listant plusieurs cibles à auditer en parallèle (mode batch)')
+  .option('--concurrency <n>', 'Nombre d\'audits exécutés en parallèle en mode batch', '3')
   .parse(process.argv);
 
 const opts = program.opts();
 
-if (!opts.url && !opts.dir) {
-  console.error('Erreur : fournir --url ou --dir');
+if (!opts.config && !opts.url && !opts.dir) {
+  console.error('Erreur : fournir --url, --dir, ou --config');
   process.exit(1);
 }
 
-async function main() {
-  const thresholdEcoIndex = Number(opts.threshold);
-  const thresholdWeightKB = Number(opts.maxWeightKb);
+/** Exécute `worker` sur `items` avec au plus `limit` exécutions concurrentes. */
+async function runWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let cursor = 0;
+
+  async function next() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await worker(items[index], index);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
+  return results;
+}
+
+function slugify(label) {
+  return label.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+/**
+ * Audite une cible unique (URL distante ou dossier local servi temporairement).
+ * `browser` est partagé entre audits concurrents : chaque audit ouvre son propre
+ * contexte isolé (cookies, cache, réseau indépendants), ce qui permet la concurrence
+ * sans qu'un audit ne pollue les métriques d'un autre.
+ */
+async function runSingleAudit(target, browser) {
+  const thresholdEcoIndex = Number(target.threshold ?? opts.threshold);
+  const thresholdWeightKB = Number(target.maxWeightKb ?? opts.maxWeightKb);
+  const label = target.label ?? opts.label;
 
   let server;
-  let targetUrl = opts.url;
+  let targetUrl = target.url;
 
-  if (opts.dir) {
-    const started = await startStaticServer(path.resolve(opts.dir), {
-      compress: opts.compress,
-      cacheHeaders: opts.cacheHeaders,
+  if (target.dir) {
+    const started = await startStaticServer(path.resolve(target.dir), {
+      compress: target.compress ?? true,
+      cacheHeaders: target.cacheHeaders ?? true,
     });
     server = started.server;
     targetUrl = started.url;
   }
 
-  console.log(`Analyse de ${targetUrl} ...`);
+  console.log(`[${label}] Analyse de ${targetUrl} ...`);
 
   let metrics;
   try {
-    metrics = await collectPageMetrics(targetUrl, { timeout: Number(opts.timeout) });
+    metrics = await collectPageMetrics(targetUrl, {
+      timeout: Number(target.timeout ?? opts.timeout),
+      retries: Number(target.retries ?? opts.retries),
+      browser,
+    });
   } catch (err) {
-    console.error(`Erreur lors du chargement de la page : ${err.message}`);
     server?.close();
-    process.exit(1);
+    console.error(`[${label}] Erreur lors du chargement de la page : ${err.message}`);
+    return { label, failed: true, breaches: [`Échec du chargement : ${err.message}`] };
   }
 
   server?.close();
 
+  if (metrics.warnings.length > 0) {
+    console.warn(`[${label}] Avertissements : ${metrics.warnings.join(' | ')}`);
+  }
+
   const audit = evaluateCriteria(metrics);
 
   const meta = {
-    label: opts.label,
-    url: opts.url,
+    label,
+    url: target.url ?? target.dir,
     date: new Date().toISOString(),
     thresholdEcoIndex,
     thresholdWeightKB,
   };
 
-  const breaches = printConsoleReport(audit, { label: opts.label, thresholdEcoIndex, thresholdWeightKB });
+  const breaches = printConsoleReport(audit, { label, thresholdEcoIndex, thresholdWeightKB });
 
-  writeJsonReport(audit, meta, opts.out);
-  console.log(`Rapport JSON écrit : ${path.resolve(opts.out)}`);
+  const outJson = target.out ?? (opts.config ? `reports/${slugify(label)}.json` : opts.out);
+  const outMd = target.outMd ?? (opts.config ? `reports/${slugify(label)}.md` : opts.outMd);
 
-  if (opts.outMd) {
-    writeMarkdownReport(audit, meta, opts.outMd);
-    console.log(`Rapport Markdown écrit : ${path.resolve(opts.outMd)}`);
+  writeJsonReport(audit, meta, outJson);
+  console.log(`[${label}] Rapport JSON écrit : ${path.resolve(outJson)}`);
+
+  if (outMd) {
+    writeMarkdownReport(audit, meta, outMd);
+    console.log(`[${label}] Rapport Markdown écrit : ${path.resolve(outMd)}`);
   }
 
-  if (breaches.length > 0) {
-    process.exit(1);
+  return { label, failed: false, breaches };
+}
+
+async function main() {
+  if (opts.config) {
+    const targets = JSON.parse(fs.readFileSync(path.resolve(opts.config), 'utf-8'));
+    const browser = await chromium.launch();
+
+    let outcomes;
+    try {
+      outcomes = await runWithConcurrency(targets, Number(opts.concurrency), (target) => runSingleAudit(target, browser));
+    } finally {
+      await browser.close();
+    }
+
+    console.log('\n=== Résumé du batch ===');
+    let anyBreach = false;
+    for (const outcome of outcomes) {
+      const status = outcome.breaches.length > 0 ? '✘' : '✔';
+      if (outcome.breaches.length > 0) anyBreach = true;
+      console.log(`  ${status} ${outcome.label}${outcome.breaches.length > 0 ? ` — ${outcome.breaches.join('; ')}` : ''}`);
+    }
+
+    process.exit(anyBreach ? 1 : 0);
   }
+
+  const outcome = await runSingleAudit({ url: opts.url, dir: opts.dir, label: opts.label, out: opts.out, outMd: opts.outMd, compress: opts.compress, cacheHeaders: opts.cacheHeaders });
+  process.exit(outcome.breaches.length > 0 ? 1 : 0);
 }
 
 main();
