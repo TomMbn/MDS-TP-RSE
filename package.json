@@ -1,0 +1,18 @@
+{
+  "name": "rgesn-audit-cli",
+  "version": "1.0.0",
+  "description": "CLI d'audit automatisé RGESN/GreenIT avec breaking build CI/CD",
+  "type": "module",
+  "bin": {
+    "rgesn-audit": "./bin/cli.js"
+  },
+  "scripts": {
+    "audit:v1": "node bin/cli.js --dir test-pages/v1-grenelle --no-compress --no-cache-headers --out reports/v1-grenelle.json --out-md reports/v1-grenelle.md --label \"V1 Grenelle\"",
+    "audit:v2": "node bin/cli.js --dir test-pages/v2-sobre --out reports/v2-sobre.json --out-md reports/v2-sobre.md --label \"V2 Sobre\"",
+    "test": "npm run audit:v2 && (npm run audit:v1 || true)"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "playwright": "^1.48.0"
+  }
+}
