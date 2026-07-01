@@ -9,6 +9,18 @@ const CATEGORY = {
   DOM: 'DOM & structure',
 };
 
+const RGESN_PDF = 'https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf';
+
+/** Référence vers un critère officiel du RGESN v1.0.1 (page exacte du PDF officiel). */
+function rgesn(code, title, page) {
+  return { source: 'RGESN v1.0.1', code, title, url: `${RGESN_PDF}#page=${page}` };
+}
+
+/** Critère non couvert explicitement par le RGESN : bonne pratique GreenIT / web performance classique. */
+function greenit(title, url) {
+  return { source: 'GreenIT / bonne pratique', code: null, title, url };
+}
+
 function bytesToKB(b) {
   return b / 1024;
 }
@@ -20,14 +32,18 @@ function isTextType(contentType = '') {
 /**
  * Chaque critère reçoit les métriques brutes collectées par le navigateur headless
  * et retourne un verdict normalisé. `pass` détermine si le critère est respecté ;
- * `weight` sert au calcul du score global pondéré.
+ * `weight` sert au calcul du score global pondéré. `ref` pointe vers le critère
+ * officiel du référentiel (RGESN v1.0.1, page exacte du PDF) dont ce contrôle est
+ * la traduction automatisée, ou vers une bonne pratique GreenIT quand le RGESN
+ * n'a pas de critère dédié.
  */
 export const CRITERIA = [
   {
-    id: 'RGESN-1.1',
+    id: 'poids-page',
     label: 'Poids total de la page',
     category: CATEGORY.WEIGHT,
     weight: 3,
+    ref: rgesn('6.1', "Le service numérique s'astreint-il à un poids maximum par écran ?", 64),
     evaluate(m) {
       const totalKB = bytesToKB(m.requests.reduce((sum, r) => sum + r.sizeBytes, 0));
       const thresholdKB = 1536; // 1.5 Mo
@@ -40,10 +56,11 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-1.6',
-    label: 'Formats d\'image nouvelle génération (WebP/AVIF)',
+    id: 'format-image',
+    label: "Formats d'image adaptés (WebP/AVIF)",
     category: CATEGORY.WEIGHT,
     weight: 2,
+    ref: rgesn('5.1', 'Le service numérique utilise-t-il un format de fichier adapté au contenu et au contexte de visualisation de chaque image ?', 54),
     evaluate(m) {
       const images = m.requests.filter((r) => IMAGE_EXT.test(r.url) || NEXT_GEN_EXT.test(r.url));
       const nextGen = images.filter((r) => NEXT_GEN_EXT.test(r.url));
@@ -57,10 +74,11 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-1.2',
-    label: 'Poids total des images',
+    id: 'poids-images',
+    label: 'Compression / poids total des images',
     category: CATEGORY.WEIGHT,
     weight: 2,
+    ref: rgesn('5.2', 'Le service numérique propose-t-il des images dont le niveau de compression est adapté au contenu et au contexte de visualisation ?', 55),
     evaluate(m) {
       const totalImgKB = bytesToKB(
         m.requests.filter((r) => r.resourceType === 'image').reduce((sum, r) => sum + r.sizeBytes, 0)
@@ -75,10 +93,11 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-1.9',
+    id: 'polices-web',
     label: 'Nombre de polices web chargées',
     category: CATEGORY.WEIGHT,
     weight: 1,
+    ref: rgesn('4.10', "Le service numérique utilise-t-il majoritairement des polices de caractères du système d'exploitation ?", 43),
     evaluate(m) {
       const fonts = m.requests.filter((r) => FONT_EXT.test(r.url));
       return {
@@ -90,10 +109,11 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-1.3',
+    id: 'poids-css',
     label: 'Poids total du CSS',
     category: CATEGORY.WEIGHT,
     weight: 1,
+    ref: rgesn('6.1', "Le service numérique s'astreint-il à un poids maximum par écran ?", 64),
     evaluate(m) {
       const cssKB = bytesToKB(m.requests.filter((r) => r.resourceType === 'stylesheet').reduce((s, r) => s + r.sizeBytes, 0));
       return {
@@ -105,10 +125,11 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-1.4',
+    id: 'poids-js',
     label: 'Poids total du JavaScript',
     category: CATEGORY.WEIGHT,
     weight: 2,
+    ref: rgesn('6.1', "Le service numérique s'astreint-il à un poids maximum par écran ?", 64),
     evaluate(m) {
       const jsKB = bytesToKB(m.requests.filter((r) => r.resourceType === 'script').reduce((s, r) => s + r.sizeBytes, 0));
       return {
@@ -120,10 +141,11 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-1.5',
+    id: 'minification',
     label: 'Minification des ressources CSS/JS',
     category: CATEGORY.WEIGHT,
     weight: 1,
+    ref: rgesn('6.4', 'Le service numérique a-t-il mis en place des techniques de compression sur la totalité des ressources transférées dont il a le contrôle ?', 66),
     evaluate(m) {
       const textAssets = m.requests.filter((r) => r.resourceType === 'script' || r.resourceType === 'stylesheet');
       if (textAssets.length === 0) {
@@ -136,15 +158,16 @@ export const CRITERIA = [
         pass: ratio <= 0.2,
         value: `${nonMinified.length}/${textAssets.length} fichiers non minifiés`,
         threshold: '≤ 20% de fichiers non minifiés',
-        detail: `Détection heuristique basée sur la densité d'espaces/retours à la ligne.`,
+        detail: `Détection heuristique basée sur la densité d'espaces/retours à la ligne. Le RGESN 6.4 cite explicitement "compression, minification des fichiers de scripts" en mise en œuvre.`,
       };
     },
   },
   {
-    id: 'RGESN-2.1',
+    id: 'nb-requetes',
     label: 'Nombre total de requêtes HTTP',
     category: CATEGORY.NETWORK,
     weight: 2,
+    ref: rgesn('6.2', "Le service numérique s'astreint-il à une limite de requêtes par écran ?", 65),
     evaluate(m) {
       return {
         pass: m.requests.length <= 40,
@@ -155,10 +178,11 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-2.2',
+    id: 'compression-reseau',
     label: 'Compression des ressources textuelles (Gzip/Brotli)',
     category: CATEGORY.NETWORK,
     weight: 3,
+    ref: rgesn('7.2', 'Le service numérique est-il configuré pour transmettre depuis le serveur des contenus compressés au client qui les accepte ?', 77),
     evaluate(m) {
       const textResponses = m.requests.filter((r) => isTextType(r.headers['content-type']));
       const compressed = textResponses.filter((r) => !!r.headers['content-encoding']);
@@ -172,10 +196,11 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-2.3',
+    id: 'cache-control',
     label: 'Cache-Control sur les ressources statiques',
     category: CATEGORY.NETWORK,
     weight: 1,
+    ref: rgesn('6.3', 'Le service numérique utilise-t-il des mécanismes de mises en cache pour la totalité des contenus transférés dont il a le contrôle ?', 66),
     evaluate(m) {
       const staticAssets = m.requests.filter((r) => ['image', 'stylesheet', 'script', 'font'].includes(r.resourceType));
       const cached = staticAssets.filter((r) => !!r.headers['cache-control']);
@@ -189,10 +214,11 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-2.4',
+    id: 'domaines-tiers',
     label: 'Domaines tiers sollicités',
     category: CATEGORY.NETWORK,
     weight: 1,
+    ref: rgesn('6.11', "Le service numérique héberge-t-il les ressources statiques transférées dont il est l'émetteur sur un même domaine ?", 74),
     evaluate(m) {
       return {
         pass: m.thirdPartyDomains.length <= 3,
@@ -203,10 +229,14 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-2.5',
-    label: 'Absence d\'erreurs réseau (4xx/5xx)',
+    id: 'erreurs-reseau',
+    label: "Absence d'erreurs réseau (4xx/5xx)",
     category: CATEGORY.NETWORK,
     weight: 2,
+    ref: greenit(
+      "Critère technique complémentaire (hors RGESN) : une requête en erreur est retéléchargée ou retentée inutilement, gaspillant de la bande passante.",
+      'https://developer.mozilla.org/fr/docs/Web/HTTP/Status'
+    ),
     evaluate(m) {
       const errors = m.requests.filter((r) => r.status >= 400);
       return {
@@ -218,25 +248,30 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-2.6',
+    id: 'video-autoplay',
     label: 'Vidéos en lecture automatique',
     category: CATEGORY.NETWORK,
     weight: 1,
+    ref: rgesn('4.2', 'Le service numérique comporte-t-il uniquement des éléments animations, vidéos et sons dont la lecture automatique est désactivée ?', 35),
     evaluate(m) {
       const wastefulVideos = m.dom.videos.filter((v) => v.autoplay);
       return {
         pass: wastefulVideos.length === 0,
         value: `${wastefulVideos.length} vidéo(s) autoplay`,
         threshold: '0 vidéo en autoplay',
-        detail: 'Une vidéo en autoplay consomme de la bande passante sans action explicite de l\'utilisateur.',
+        detail: "Une vidéo en autoplay consomme de la bande passante sans action explicite de l'utilisateur.",
       };
     },
   },
   {
-    id: 'RGESN-3.1',
+    id: 'dom-nodes',
     label: 'Nombre de nœuds DOM',
     category: CATEGORY.DOM,
     weight: 3,
+    ref: greenit(
+      "Critère technique complémentaire (hors RGESN, issu de la méthodologie EcoIndex/GreenIT-Analysis) : un DOM volumineux augmente le coût de rendu et de mémoire côté client.",
+      'https://www.ecoindex.fr/comment-ca-marche/'
+    ),
     evaluate(m) {
       return {
         pass: m.dom.totalNodes <= 800,
@@ -247,10 +282,14 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-3.2',
+    id: 'dom-profondeur',
     label: 'Profondeur maximale du DOM',
     category: CATEGORY.DOM,
     weight: 1,
+    ref: greenit(
+      'Critère technique complémentaire (hors RGESN) : une arborescence trop profonde complexifie le CSSOM et le rendu.',
+      'https://web.dev/dom-size/'
+    ),
     evaluate(m) {
       return {
         pass: m.dom.maxDepth <= 15,
@@ -261,10 +300,11 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-3.3',
+    id: 'lazy-loading',
     label: 'Lazy-loading des médias hors-champ',
     category: CATEGORY.DOM,
     weight: 2,
+    ref: rgesn('6.8', "Le service numérique évite-t-il de déclencher le chargement de ressources et de contenus inutilisés pour chaque fonctionnalité ?", 71),
     evaluate(m) {
       const offscreen = m.dom.images.filter((img) => !img.inViewport);
       const lazy = offscreen.filter((img) => img.loading === 'lazy');
@@ -278,10 +318,14 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-3.4',
+    id: 'verbosite-html',
     label: 'Verbosité du HTML',
     category: CATEGORY.DOM,
     weight: 1,
+    ref: greenit(
+      'Critère technique complémentaire (hors RGESN) : un HTML verbeux (balises redondantes, structure non sémantique) alourdit le parsing et le poids transféré.',
+      'https://developer.mozilla.org/fr/docs/Glossary/Semantics'
+    ),
     evaluate(m) {
       const sizeKB = m.dom.htmlSizeChars / 1024;
       return {
@@ -293,10 +337,11 @@ export const CRITERIA = [
     },
   },
   {
-    id: 'RGESN-3.5',
-    label: 'Meta viewport (structure mobile-first)',
+    id: 'meta-viewport',
+    label: 'Meta viewport (adaptation aux terminaux)',
     category: CATEGORY.DOM,
     weight: 1,
+    ref: rgesn('1.6', "Le service numérique s'adapte-t-il à différents types de terminaux d'affichage ?", 13),
     evaluate(m) {
       return {
         pass: m.dom.hasViewportMeta,
@@ -316,6 +361,7 @@ export function evaluateCriteria(metrics) {
       label: criterion.label,
       category: criterion.category,
       weight: criterion.weight,
+      ref: criterion.ref,
       ...outcome,
     };
   });

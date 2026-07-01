@@ -31,7 +31,9 @@ export function printConsoleReport(audit, { label, thresholdEcoIndex, thresholdW
     console.log(`${BOLD}${category}${RESET}`);
     for (const r of items) {
       const mark = r.pass ? `${GREEN}✔${RESET}` : `${RED}✘${RESET}`;
-      console.log(`  ${mark} ${r.id.padEnd(11)} ${r.label} — ${r.value} (seuil : ${r.threshold})`);
+      const refTag = r.ref?.code ? `RGESN ${r.ref.code}` : 'GreenIT';
+      console.log(`  ${mark} ${DIM}[${refTag}]${RESET} ${r.label} — ${r.value} (seuil : ${r.threshold})`);
+      console.log(`      ${DIM}${r.ref?.url}${RESET}`);
     }
     console.log('');
   }
@@ -84,9 +86,10 @@ export function writeMarkdownReport(audit, meta, outPath) {
 
   for (const [category, items] of Object.entries(byCategory)) {
     md += `## ${category}\n\n`;
-    md += `| Statut | ID | Critère | Valeur | Seuil |\n|---|---|---|---|---|\n`;
+    md += `| Statut | Référence | Critère | Valeur | Seuil |\n|---|---|---|---|---|\n`;
     for (const r of items) {
-      md += `| ${r.pass ? '✔' : '✘'} | ${r.id} | ${r.label} | ${r.value} | ${r.threshold} |\n`;
+      const refCell = r.ref?.code ? `[RGESN ${r.ref.code}](${r.ref.url})` : `[GreenIT](${r.ref?.url})`;
+      md += `| ${r.pass ? '✔' : '✘'} | ${refCell} | ${r.label} | ${r.value} | ${r.threshold} |\n`;
     }
     md += '\n';
   }

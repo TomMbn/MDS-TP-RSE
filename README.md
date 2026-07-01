@@ -57,41 +57,49 @@ npm run audit:v1   # ~8/18 critères, EcoIndex ~34, exit 1 (build cassé)
 
 ## Les 18 critères automatisés
 
+Chaque critère est relié au **critère officiel exact du [RGESN v1.0.1](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf)**
+(référentiel gouvernemental publié par la mission Numérique écoresponsable), avec un lien direct vers
+la page du PDF officiel décrivant le problème traité. Quand le RGESN n'a pas de critère dédié à un
+contrôle strictement technique, il est marqué **GreenIT** et relié à une source de référence
+(méthodologie EcoIndex, MDN, web.dev).
+
 ### Poids & formats
 
-| ID | Critère | Seuil |
+| Critère | Référence | Seuil |
 |---|---|---|
-| RGESN-1.1 | Poids total de la page | ≤ 1.5 Mo |
-| RGESN-1.6 | Formats d'image nouvelle génération (WebP/AVIF) | ≥ 80% des images |
-| RGESN-1.2 | Poids total des images | ≤ 500 Ko |
-| RGESN-1.9 | Nombre de polices web chargées | ≤ 2 |
-| RGESN-1.3 | Poids total du CSS | ≤ 100 Ko |
-| RGESN-1.4 | Poids total du JavaScript | ≤ 300 Ko |
-| RGESN-1.5 | Minification des ressources CSS/JS | ≤ 20% de fichiers non minifiés |
+| Poids total de la page | [RGESN 6.1](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf#page=64) — *poids maximum par écran* | ≤ 1.5 Mo |
+| Formats d'image adaptés (WebP/AVIF) | [RGESN 5.1](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf#page=54) — *format de fichier adapté au contenu de chaque image* | ≥ 80% des images |
+| Compression / poids total des images | [RGESN 5.2](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf#page=55) — *niveau de compression adapté des images* | ≤ 500 Ko |
+| Nombre de polices web chargées | [RGESN 4.10](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf#page=43) — *polices du système d'exploitation* | ≤ 2 |
+| Poids total du CSS | [RGESN 6.1](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf#page=64) — *poids maximum par écran* | ≤ 100 Ko |
+| Poids total du JavaScript | [RGESN 6.1](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf#page=64) — *poids maximum par écran* | ≤ 300 Ko |
+| Minification des ressources CSS/JS | [RGESN 6.4](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf#page=66) — *techniques de compression sur les ressources transférées* | ≤ 20% de fichiers non minifiés |
 
 ### Réseau
 
-| ID | Critère | Seuil |
+| Critère | Référence | Seuil |
 |---|---|---|
-| RGESN-2.1 | Nombre total de requêtes HTTP | ≤ 40 |
-| RGESN-2.2 | Compression Gzip/Brotli des ressources textuelles | ≥ 90% |
-| RGESN-2.3 | Cache-Control sur les ressources statiques | ≥ 80% |
-| RGESN-2.4 | Domaines tiers sollicités | ≤ 3 |
-| RGESN-2.5 | Absence d'erreurs réseau (4xx/5xx) | 0 |
-| RGESN-2.6 | Vidéos en lecture automatique | 0 |
+| Nombre total de requêtes HTTP | [RGESN 6.2](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf#page=65) — *limite de requêtes par écran* | ≤ 40 |
+| Compression Gzip/Brotli des ressources textuelles | [RGESN 7.2](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf#page=77) — *transmission de contenus compressés depuis le serveur* | ≥ 90% |
+| Cache-Control sur les ressources statiques | [RGESN 6.3](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf#page=66) — *mécanismes de mise en cache* | ≥ 80% |
+| Domaines tiers sollicités | [RGESN 6.11](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf#page=74) — *ressources statiques hébergées sur un même domaine* | ≤ 3 |
+| Absence d'erreurs réseau (4xx/5xx) | GreenIT — [statuts HTTP (MDN)](https://developer.mozilla.org/fr/docs/Web/HTTP/Status) | 0 |
+| Vidéos en lecture automatique | [RGESN 4.2](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf#page=35) — *lecture automatique désactivée* | 0 |
 
 ### DOM & structure
 
-| ID | Critère | Seuil |
+| Critère | Référence | Seuil |
 |---|---|---|
-| RGESN-3.1 | Nombre de nœuds DOM | ≤ 800 |
-| RGESN-3.2 | Profondeur maximale du DOM | ≤ 15 niveaux |
-| RGESN-3.3 | Lazy-loading des médias hors-champ | ≥ 90% |
-| RGESN-3.4 | Verbosité du HTML | ≤ 100 Ko |
-| RGESN-3.5 | Présence de la meta viewport | présent |
+| Nombre de nœuds DOM | GreenIT — [méthodologie EcoIndex](https://www.ecoindex.fr/comment-ca-marche/) | ≤ 800 |
+| Profondeur maximale du DOM | GreenIT — [DOM size (web.dev)](https://web.dev/dom-size/) | ≤ 15 niveaux |
+| Lazy-loading des médias hors-champ | [RGESN 6.8](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf#page=71) — *éviter le chargement de ressources inutilisées* | ≥ 90% |
+| Verbosité du HTML | GreenIT — [sémantique HTML (MDN)](https://developer.mozilla.org/fr/docs/Glossary/Semantics) | ≤ 100 Ko |
+| Présence de la meta viewport | [RGESN 1.6](https://ecoresponsable.numerique.gouv.fr/docs/2023/rgesn-referentiel-general-ecoconception-v1.0.1.pdf#page=13) — *adaptation à différents terminaux d'affichage* | présent |
 
-> Les identifiants `RGESN-x.y` sont indicatifs et servent à regrouper les critères par thème ;
-> ils ne prétendent pas correspondre exactement à la numérotation officielle du référentiel RGESN.
+13 des 18 critères sont directement rattachés à un critère RGESN officiel ; les 5 restants sont des
+contrôles techniques complémentaires (mesure de la taille du DOM, erreurs HTTP, verbosité du markup)
+issus de la méthodologie GreenIT/EcoIndex, non couverts explicitement par le RGESN mais couramment
+utilisés en audit de performance web.
 
 ## Score global et EcoIndex approximé
 
