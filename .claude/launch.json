@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["-y", "serve", "reports", "-l", "4173"],
       "port": 4173
+    },
+    {
+      "name": "audit-ui",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["src/webui/server.js"],
+      "port": 4321
     }
   ]
 }

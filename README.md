@@ -10,6 +10,21 @@ npm install
 npx playwright install chromium
 ```
 
+## Interface web locale (optionnelle)
+
+Un petit formulaire local pour lancer un audit sans taper la commande, pratique pour tester
+rapidement une URL en démo :
+
+```bash
+npm run ui
+# → http://localhost:4321
+```
+
+Renseigne l'URL, le label et les options (seuil, poids max, passes, timeout, retries), clique sur
+"Lancer l'audit" — la page attend la fin de l'audit côté serveur (navigateur headless) puis ouvre
+automatiquement le rapport HTML détaillé dans un nouvel onglet. Reste un outil **local/dev**, pas
+un service exposé : un seul audit à la fois, aucune authentification.
+
 ## Usage
 
 ```bash
@@ -144,6 +159,7 @@ src/criteria/index.js    → les 18 critères et leur logique d'évaluation
 src/ecoindex.js           → calcul du score composite par quantiles
 src/report/index.js      → rapport console (stdout) + export JSON/Markdown
 src/report/html.js        → rapport HTML autonome (jauges, badges RGESN) + index comparatif batch
+src/webui/server.js      → interface web locale (formulaire → lance le CLI → ouvre le rapport)
 test-pages/               → pages V1 (Grenelle) et V2 (Sobre) pour le crash-test
 ```
 
